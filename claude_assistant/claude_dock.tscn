@@ -1,0 +1,38 @@
+[gd_scene load_steps=2 format=3 uid="uid://brree3id2hb4o"]
+
+[ext_resource type="Script" path="res://addons/claude_assistant/claude_dock.gd" id="1_5oypa"]
+
+[node name="ClaudeDock" type="VBoxContainer"]
+offset_right = 114.0
+offset_bottom = 433.0
+size_flags_vertical = 3
+theme_override_constants/separation = 10
+script = ExtResource("1_5oypa")
+
+[node name="VSplitContainer" type="VSplitContainer" parent="."]
+layout_mode = 2
+
+[node name="TextEdit" type="TextEdit" parent="VSplitContainer"]
+custom_minimum_size = Vector2(0, 100)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="CodeEdit" type="CodeEdit" parent="VSplitContainer"]
+custom_minimum_size = Vector2(0, 200)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="SendButton" type="Button" parent="."]
+layout_mode = 2
+size_flags_vertical = 4
+text = "Send Request"
+
+[node name="CreateFileButton" type="Button" parent="."]
+layout_mode = 2
+size_flags_vertical = 4
+text = "Create File"
+
+[node name="EditFileButton" type="Button" parent="."]
+layout_mode = 2
+size_flags_vertical = 4
+text = "Edit File"
