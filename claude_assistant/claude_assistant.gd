@@ -6,6 +6,8 @@ var http_request
 var api_key = "" # You'll need to set this to your actual API key
 var file_dialog: FileDialog
 
+const MAX_TOKENS = 4000  # Increased token limit. Adjust as needed.
+
 func _enter_tree():
 	# Initialize the dock
 	dock = preload("res://addons/claude_assistant/claude_dock.tscn").instantiate()
@@ -47,7 +49,7 @@ func _on_send_request(prompt):
 		"messages": [
 			{"role": "user", "content": prompt}
 		],
-		"max_tokens": 1000
+		"max_tokens": MAX_TOKENS
 	})
 	print("API Key (first 5 chars): " + api_key.substr(0, 5))  # Print first 5 chars of API key for verification
 	print("Request Body: " + body)  # Print the request body
