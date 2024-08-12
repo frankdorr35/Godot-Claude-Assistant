@@ -3,44 +3,103 @@ extends EditorPlugin
 
 var dock
 var http_request
-var api_key = "" # You'll need to set this to your actual API key
 var file_dialog: FileDialog
+var settings_dialog: AcceptDialog
+var api_key_input: LineEdit
+var loading_indicator: ProgressBar
+var history: Array = []
+var history_index: int = -1
 
-const MAX_TOKENS = 4000  # Increased token limit. Adjust as needed.
+const MAX_TOKENS = 4000
+const SETTINGS_PATH = "user://claude_assistant_settings.cfg"
 
 func _enter_tree():
-	# Initialize the dock
 	dock = preload("res://addons/claude_assistant/claude_dock.tscn").instantiate()
 	add_control_to_dock(DOCK_SLOT_RIGHT_UL, dock)
 	
-	# Connect signals
 	dock.connect("send_request", Callable(self, "_on_send_request"))
 	dock.connect("create_file", Callable(self, "_on_create_file"))
 	dock.connect("edit_file", Callable(self, "_on_edit_file"))
+	dock.connect("show_settings", Callable(self, "_on_show_settings"))
+	dock.connect("previous_query", Callable(self, "_on_previous_query"))
+	dock.connect("next_query", Callable(self, "_on_next_query"))
 	
-	# Initialize HTTP request
 	http_request = HTTPRequest.new()
 	add_child(http_request)
 	http_request.connect("request_completed", Callable(self, "_on_request_completed"))
 	
-	# Initialize FileDialog
 	file_dialog = FileDialog.new()
 	file_dialog.access = FileDialog.ACCESS_RESOURCES
 	file_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
 	add_child(file_dialog)
 	file_dialog.connect("file_selected", Callable(self, "_on_file_selected"))
+	
+	_setup_settings_dialog()
+	_setup_loading_indicator()
+	_load_settings()
 
 func _exit_tree():
-	# Clean-up of the plugin goes here
-	remove_control_from_docks(dock)
-	dock.free()
-	file_dialog.queue_free()
+	if dock:
+		remove_control_from_docks(dock)
+		dock.free()
+	if file_dialog:
+		file_dialog.queue_free()
+	if settings_dialog:
+		settings_dialog.queue_free()
+	if http_request:
+		http_request.queue_free()
+
+func _setup_settings_dialog():
+	settings_dialog = AcceptDialog.new()
+	settings_dialog.title = "Claude Assistant Settings"
+	var vbox = VBoxContainer.new()
+	settings_dialog.add_child(vbox)
+	
+	var label = Label.new()
+	label.text = "API Key:"
+	vbox.add_child(label)
+	
+	api_key_input = LineEdit.new()
+	api_key_input.secret = true
+	vbox.add_child(api_key_input)
+	
+	settings_dialog.connect("confirmed", Callable(self, "_on_settings_confirmed"))
+	add_child(settings_dialog)
+
+func _setup_loading_indicator():
+	loading_indicator = ProgressBar.new()
+	loading_indicator.modulate = Color(1, 1, 1, 0.8)
+	loading_indicator.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	loading_indicator.hide()
+	dock.add_child(loading_indicator)
+
+func _load_settings():
+	var config = ConfigFile.new()
+	var err = config.load(SETTINGS_PATH)
+	if err == OK:
+		var saved_key = config.get_value("settings", "api_key", "")
+		api_key_input.text = saved_key
+
+func _save_settings():
+	var config = ConfigFile.new()
+	config.set_value("settings", "api_key", api_key_input.text)
+	config.save(SETTINGS_PATH)
+
+func _on_show_settings():
+	settings_dialog.popup_centered(Vector2(300, 100))
+
+func _on_settings_confirmed():
+	_save_settings()
 
 func _on_send_request(prompt):
+	if api_key_input.text.is_empty():
+		dock.display_response("Error: API key not set. Please set it in the settings.")
+		return
+	
 	var project_structure = get_project_structure()
 	var headers = [
 		"Content-Type: application/json",
-		"x-api-key: " + api_key,
+		"x-api-key: " + api_key_input.text,
 		"anthropic-version: 2023-06-01"
 	]
 	var body = JSON.stringify({
@@ -51,14 +110,18 @@ func _on_send_request(prompt):
 		],
 		"max_tokens": MAX_TOKENS
 	})
-	print("API Key (first 5 chars): " + api_key.substr(0, 5))  # Print first 5 chars of API key for verification
-	print("Request Body: " + body)  # Print the request body
 	http_request.request("https://api.anthropic.com/v1/messages", headers, HTTPClient.METHOD_POST, body)
+	
+	loading_indicator.show()
+	loading_indicator.value = 0
+	var tween = create_tween()
+	tween.tween_property(loading_indicator, "value", 100, 5.0)
+	
+	history.append({"prompt": prompt, "response": ""})
+	history_index = history.size() - 1
 
 func _on_request_completed(result, response_code, headers, body):
-	print("Response Code: ", response_code)
-	print("Headers: ", headers)
-	print("Body: ", body.get_string_from_utf8())
+	loading_indicator.hide()
 	
 	if result != HTTPRequest.RESULT_SUCCESS:
 		dock.display_response("Error: HTTP Request failed. Error code: " + str(result))
@@ -75,9 +138,26 @@ func _on_request_completed(result, response_code, headers, body):
 	elif json.has("error"):
 		dock.display_response("API Error: " + json.error.message)
 	elif json.has("content") and json.content.size() > 0:
-		dock.display_response(json.content[0].text)
+		var response = json.content[0].text
+		dock.display_response(response)
+		history[history_index]["response"] = response
 	else:
 		dock.display_response("Error: Unexpected API response structure.")
+
+func _on_previous_query():
+	if history_index > 0:
+		history_index -= 1
+		_display_history_item()
+
+func _on_next_query():
+	if history_index < history.size() - 1:
+		history_index += 1
+		_display_history_item()
+
+func _display_history_item():
+	var item = history[history_index]
+	dock.set_input_text(item["prompt"])
+	dock.display_response(item["response"])
 
 func get_project_structure():
 	var structure = ""

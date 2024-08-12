@@ -4,50 +4,77 @@ extends VBoxContainer
 signal send_request(prompt)
 signal create_file(content)
 signal edit_file(file_path, content)
+signal show_settings
+signal previous_query
+signal next_query
 
-@onready var input_text = $VSplitContainer/TextEdit
-@onready var send_button = $SendButton
-@onready var output_text = $VSplitContainer/CodeEdit
-@onready var create_file_button = $CreateFileButton
-@onready var edit_file_button = $EditFileButton
+@onready var input_text = $VSplitContainer/InputTextEdit
+@onready var output_text = $VSplitContainer/OutputCodeEdit
+@onready var send_button = $ButtonContainer/SendButton
+@onready var create_file_button = $ButtonContainer/CreateFileButton
+@onready var edit_file_button = $ButtonContainer/EditFileButton
+@onready var settings_button = $ButtonContainer/SettingsButton
+@onready var prev_button = $ButtonContainer/PrevButton
+@onready var next_button = $ButtonContainer/NextButton
 
 var highlighter: CodeHighlighter
 
 func _ready():
-	send_button.connect("pressed", Callable(self, "_on_send_button_pressed"))
-	create_file_button.connect("pressed", Callable(self, "_on_create_file_button_pressed"))
-	edit_file_button.connect("pressed", Callable(self, "_on_edit_file_button_pressed"))
+	if send_button:
+		send_button.connect("pressed", Callable(self, "_on_send_button_pressed"))
+	if create_file_button:
+		create_file_button.connect("pressed", Callable(self, "_on_create_file_button_pressed"))
+	if edit_file_button:
+		edit_file_button.connect("pressed", Callable(self, "_on_edit_file_button_pressed"))
+	if settings_button:
+		settings_button.connect("pressed", Callable(self, "_on_settings_button_pressed"))
+	if prev_button:
+		prev_button.connect("pressed", Callable(self, "_on_prev_button_pressed"))
+	if next_button:
+		next_button.connect("pressed", Callable(self, "_on_next_button_pressed"))
 	
-	# Setup syntax highlighter
 	highlighter = CodeHighlighter.new()
 	highlighter.number_color = Color.DARK_ORANGE
-	highlighter.symbol_color = Color.DARK_RED
+	highlighter.symbol_color = Color.DARK_GOLDENROD
 	highlighter.function_color = Color.DARK_BLUE
 	highlighter.member_variable_color = Color.DARK_GREEN
 	
-	output_text.syntax_highlighter = highlighter
+	if output_text:
+		output_text.syntax_highlighter = highlighter
 
 func _on_send_button_pressed():
-	var prompt = input_text.text
-	emit_signal("send_request", prompt)
+	if input_text:
+		emit_signal("send_request", input_text.text)
 
 func _on_create_file_button_pressed():
-	emit_signal("create_file", output_text.text)
+	if output_text:
+		emit_signal("create_file", output_text.text)
 
 func _on_edit_file_button_pressed():
-	# You might want to add a file selection dialog here
-	# For now, we'll just use a hardcoded path as an example
-	emit_signal("edit_file", "res://example.gd", output_text.text)
+	if output_text:
+		emit_signal("edit_file", "res://example.gd", output_text.text)
+
+func _on_settings_button_pressed():
+	emit_signal("show_settings")
+
+func _on_prev_button_pressed():
+	emit_signal("previous_query")
+
+func _on_next_button_pressed():
+	emit_signal("next_query")
 
 func display_response(response):
-	output_text.text = response
-	
-	# Attempt to detect the language and set appropriate keywords
-	if "func " in response or "var " in response:
-		set_gdscript_keywords()
-	elif "def " in response or "import " in response:
-		set_python_keywords()
-	# Add more language detection as needed
+	if output_text:
+		output_text.text = response
+		
+		if "func " in response or "var " in response:
+			set_gdscript_keywords()
+		elif "def " in response or "import " in response:
+			set_python_keywords()
+
+func set_input_text(text):
+	if input_text:
+		input_text.text = text
 
 func set_gdscript_keywords():
 	highlighter.clear_keywords()
